@@ -54,10 +54,13 @@ model Post {
 }
 
 model Category {
-  id    String @id @default(auto()) @map("_id") @db.ObjectId
-  name  String @unique
-  slug  String @unique
-  posts Post[]
+  id            String     @id @default(auto()) @map("_id") @db.ObjectId
+  name          String     @unique
+  slug          String     @unique
+  parentId      String?    @db.ObjectId
+  parent        Category?  @relation("Subcategories", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subcategories Category[] @relation("Subcategories")
+  posts         Post[]
 }
 
 model Revision {

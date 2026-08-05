@@ -269,7 +269,10 @@ app.put("/api/posts/:id/hide", async (req: Request, res: Response) => {
 // 8. CATEGORIES API: List
 app.get("/api/categories", async (req: Request, res: Response) => {
   try {
-    const categories = await db.category.findMany();
+    const categories = await db.category.findMany({
+      where: { parentId: null },
+      include: { subcategories: true },
+    });
     return res.json(categories);
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
