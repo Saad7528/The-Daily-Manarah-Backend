@@ -1,0 +1,90 @@
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  SUPER_ADMIN
+  EDITOR
+  REPORTER
+  AD_MANAGER
+}
+
+model User {
+  id        String     @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  email     String     @unique
+  password  String
+  role      Role       @default(REPORTER)
+  createdAt DateTime   @default(now())
+  posts     Post[]
+  revisions Revision[]
+}
+
+model Post {
+  id            String     @id @default(auto()) @map("_id") @db.ObjectId
+  title         String
+  slug          String     @unique
+  content       String
+  summary       String?
+  coverImage    String
+  isWatermarkOn Boolean    @default(true)
+  isVerified    Boolean    @default(false)
+  sourceUrl     String?
+  sourceVideo   String?
+  isHidden      Boolean    @default(false)
+  isPinned      Boolean    @default(false)
+  pinnedUntil   DateTime?
+  division      String?
+  district      String?
+  thana         String?
+  categoryId    String     @db.ObjectId
+  category      Category   @relation(fields: [categoryId], references: [id])
+  authorId      String     @db.ObjectId
+  author        User       @relation(fields: [authorId], references: [id])
+  revisions     Revision[]
+  comments      Comment[]
+  views         Int        @default(0)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
+
+model Category {
+  id    String @id @default(auto()) @map("_id") @db.ObjectId
+  name  String @unique
+  slug  String @unique
+  posts Post[]
+}
+
+model Revision {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  postId    String   @db.ObjectId
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  editedBy  String   @db.ObjectId
+  user      User     @relation(fields: [editedBy], references: [id])
+  title     String
+  content   String
+  createdAt DateTime @default(now())
+}
+
+model Comment {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  postId     String   @db.ObjectId
+  post       Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorName String
+  content    String
+  isApproved Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+
+model SiteSetting {
+  id                 String  @id @default("global_settings") @map("_id")
+  watermarkGlobal    Boolean @default(true)
+  commentAiFilterOn  Boolean @default(true)
+  shoppingModuleOn   Boolean @default(false)
+  sponsoredBannersOn Boolean @default(true)
+}
