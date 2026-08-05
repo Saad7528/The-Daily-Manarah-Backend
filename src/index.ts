@@ -3,11 +3,16 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { db } from "./lib/db";
 import bcrypt from "bcryptjs";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Initialize Google Generative AI
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+const aiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 app.use(cors());
 app.use(express.json());
@@ -306,19 +311,40 @@ app.post("/api/posts/:id/comments", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // AI Profanity Filter check logic
-    const profaneKeywords = ["স্প্যাম", "spam", "খারাপ", "গালি", "badword", "ভুয়া"];
-    const containsProfanity = profaneKeywords.some((word) =>
-      content.toLowerCase().includes(word) || authorName.toLowerCase().includes(word)
-    );
+    let isApproved = true;
 
-    // If profanity is found, auto-moderated (isApproved = false), else auto-approved (isApproved = true)
+    // Use Gemini AI if API key is provided
+    if (process.env.GEMINI_API_KEY) {
+      try {
+        const prompt = `Analyze this comment: "${content}" by author "${authorName}". Is it spam, hate speech, or containing extreme profanity/abuse? Answer with ONLY "yes" or "no".`;
+        const result = await aiModel.generateContent(prompt);
+        const responseText = result.response.text().trim().toLowerCase();
+        if (responseText.includes("yes")) {
+          isApproved = false;
+        }
+      } catch (err) {
+        console.error("Gemini filter error, falling back to keywords:", err);
+        const profaneKeywords = ["স্প্যাম", "spam", "খারাপ", "গালি", "badword", "ভুয়া"];
+        const containsProfanity = profaneKeywords.some((word) =>
+          content.toLowerCase().includes(word) || authorName.toLowerCase().includes(word)
+        );
+        isApproved = !containsProfanity;
+      }
+    } else {
+      // Fallback keyword filter
+      const profaneKeywords = ["স্প্যাম", "spam", "খারাপ", "গালি", "badword", "ভুয়া"];
+      const containsProfanity = profaneKeywords.some((word) =>
+        content.toLowerCase().includes(word) || authorName.toLowerCase().includes(word)
+      );
+      isApproved = !containsProfanity;
+    }
+
     const comment = await db.comment.create({
       data: {
         postId: id,
         authorName,
         content,
-        isApproved: !containsProfanity,
+        isApproved,
       },
     });
 
@@ -410,6 +436,35 @@ app.get("/api/revisions", async (req: Request, res: Response) => {
       orderBy: { createdAt: "desc" },
     });
     return res.json(revisions);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// 16. AI SPELLCHECK API: Check Bengali text for spelling mistakes
+app.post("/api/ai/spellcheck", async (req: Request, res: Response) => {
+  try {
+    const { text } = req.body;
+    if (!text) {
+      return res.status(400).json({ error: "Text is required" });
+    }
+
+    if (!process.env.GEMINI_API_KEY) {
+      // Fallback: simulated spelling checks
+      const simulatedSuggestions = [
+        { original: "ভুলশব্দ", fixed: "সঠিকশব্দ", reason: "বানান ভুল" },
+      ];
+      return res.json({ suggestions: simulatedSuggestions });
+    }
+
+    const prompt = `You are a professional Bengali proofreader. Identify spelling and grammatical mistakes in the following Bengali text: "${text}". Provide suggestions for correction in JSON format. The response must be a JSON array of objects, where each object has: "original" (the wrong word), "fixed" (the corrected word), and "reason" (brief reason in Bengali). Do not return markdown, backticks, or any conversational text. Return ONLY a valid JSON array. For example: [{"original": "ভুলশব্দ", "fixed": "সঠিকশব্দ", "reason": "বানান ভুল"}]`;
+    
+    const result = await aiModel.generateContent(prompt);
+    const responseText = result.response.text().trim();
+    // Strip markdown JSON wrapper if present
+    const cleanJsonText = responseText.replace(/```json|```/g, "").trim();
+    const suggestions = JSON.parse(cleanJsonText);
+    return res.json({ suggestions });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
