@@ -745,6 +745,28 @@ app.get("/api/revisions", async (req: Request, res: Response) => {
   }
 });
 
+app.post("/api/revisions/:id/restore", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const revision = await db.revision.findUnique({ where: { id } });
+    if (!revision) {
+      return res.status(404).json({ error: "রিভিশন হিস্ট্রি পাওয়া যায়নি।" });
+    }
+
+    const restoredPost = await db.post.update({
+      where: { id: revision.postId },
+      data: {
+        title: revision.title,
+        content: revision.content,
+      },
+    });
+
+    return res.json({ message: "সফলভাবে পূর্ববর্তী সংস্করণটি রিস্টোর করা হয়েছে!", post: restoredPost });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 // 16. AI SPELLCHECK API: Check Bengali text for spelling mistakes
 app.post("/api/ai/spellcheck", async (req: Request, res: Response) => {
   try {
