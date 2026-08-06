@@ -80,6 +80,84 @@ app.post("/api/auth/login", async (req: Request, res: Response) => {
   }
 });
 
+// 2.5. USER MANAGEMENT API (Admin Dashboard Team Management)
+app.get("/api/users", async (req: Request, res: Response) => {
+  try {
+    const users = await db.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    return res.json(users);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/users", async (req: Request, res: Response) => {
+  try {
+    const { name, email, password, role } = req.body;
+    if (!name || !email || !password || !role) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const existingUser = await db.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return res.status(400).json({ error: "Email already exists" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = await db.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+        role,
+      },
+    });
+
+    return res.status(201).json({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete("/api/users/:id", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    await db.user.delete({ where: { id } });
+    return res.json({ message: "User deleted successfully" });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.put("/api/users/:id/role", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { role } = req.body;
+    if (!role) {
+      return res.status(400).json({ error: "Missing role field" });
+    }
+    const user = await db.user.update({
+      where: { id },
+      data: { role },
+    });
+    return res.json(user);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 // 3. POSTS API: List
 app.get("/api/posts", async (req: Request, res: Response) => {
   try {
