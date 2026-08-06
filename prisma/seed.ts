@@ -1,4 +1,5 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Role } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
@@ -170,6 +171,9 @@ async function main() {
   console.log("Seeding categories & subcategories into MongoDB...");
 
   // Clean existing categories
+  await prisma.category.deleteMany({
+    where: { parentId: { not: null } }
+  });
   await prisma.category.deleteMany();
 
   for (const cat of seedData) {
@@ -196,6 +200,33 @@ async function main() {
     
     console.log(`- Seeded ${cat.subcategories.length} subcategories for ${cat.name}`);
   }
+
+  console.log("Seeding default testing users...");
+  
+  // Clean existing users
+  await prisma.user.deleteMany();
+
+  const adminPassword = bcrypt.hashSync("adminpassword123", 10);
+  const adminUser = await prisma.user.create({
+    data: {
+      name: "সুপার অ্যাডমিন",
+      email: "admin@dailymanarah.com",
+      password: adminPassword,
+      role: Role.SUPER_ADMIN,
+    },
+  });
+  console.log(`Created admin user: ${adminUser.email}`);
+
+  const editorPassword = bcrypt.hashSync("editorpassword123", 10);
+  const editorUser = await prisma.user.create({
+    data: {
+      name: "সারাহ তাসনিম",
+      email: "editor@dailymanarah.com",
+      password: editorPassword,
+      role: Role.EDITOR,
+    },
+  });
+  console.log(`Created editor user: ${editorUser.email}`);
 
   console.log("Database seeding completed successfully!");
 }
