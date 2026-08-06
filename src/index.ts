@@ -158,14 +158,65 @@ app.put("/api/users/:id/role", async (req: Request, res: Response) => {
   }
 });
 
+app.post("/api/subscriptions", async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+    const existing = await db.subscription.findUnique({
+      where: { email },
+    });
+    if (existing) {
+      return res.status(400).json({ error: "ইমেইলটি ইতিমধ্যেই সাবস্ক্রাইব করা হয়েছে।" });
+    }
+    const subscription = await db.subscription.create({
+      data: { email },
+    });
+    return res.status(201).json(subscription);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/donations", async (req: Request, res: Response) => {
+  try {
+    const { email, amount, transactionId, fundType } = req.body;
+    if (!email || !amount || !transactionId || !fundType) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+    const existingTx = await db.donationReport.findUnique({
+      where: { transactionId },
+    });
+    if (existingTx) {
+      return res.status(400).json({ error: "এই ট্রানজ্যাকশন আইডিটি ইতিমধ্যেই ব্যবহৃত হয়েছে।" });
+    }
+    const report = await db.donationReport.create({
+      data: {
+        email,
+        amount: parseFloat(amount),
+        transactionId,
+        fundType,
+      },
+    });
+    return res.status(201).json(report);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 // 3. POSTS API: List
 app.get("/api/posts", async (req: Request, res: Response) => {
   try {
-    const { categorySlug, division, district, thana, search, sort } = req.query;
+    const { categorySlug, division, district, thana, search, sort, isVerified } = req.query;
 
     const whereClause: any = {
       isHidden: false,
     };
+
+    if (isVerified === "true") {
+      whereClause.isVerified = true;
+    }
 
     if (categorySlug) {
       whereClause.category = { slug: categorySlug as string };
