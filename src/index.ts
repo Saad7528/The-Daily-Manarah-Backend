@@ -4,6 +4,9 @@ import dotenv from "dotenv";
 import { db } from "./lib/db";
 import bcrypt from "bcryptjs";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { encrypt, decrypt } from "./utils/crypto";
+import { sendActivationEmail } from "./utils/mailer";
+import crypto from "crypto";
 
 dotenv.config();
 
@@ -69,6 +72,10 @@ app.post("/api/auth/login", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid credentials" });
     }
 
+    if (!user.isVerified) {
+      return res.status(400).json({ error: "আপনার অ্যাকাউন্টটি এখনও সচল করা হয়নি। অনুগ্রহ করে জিমেইল চেক করে লিঙ্কটিতে ক্লিক করুন।" });
+    }
+
     return res.json({
       id: user.id,
       name: user.name,
@@ -81,6 +88,7 @@ app.post("/api/auth/login", async (req: Request, res: Response) => {
 });
 
 // 2.5. USER MANAGEMENT API (Admin Dashboard Team Management)
+// 2.5. USER MANAGEMENT API (Admin Dashboard Team Management)
 app.get("/api/users", async (req: Request, res: Response) => {
   try {
     const users = await db.user.findMany({
@@ -89,10 +97,20 @@ app.get("/api/users", async (req: Request, res: Response) => {
         name: true,
         email: true,
         role: true,
+        isVerified: true,
+        encryptedPassword: true,
       },
       orderBy: { createdAt: "desc" },
     });
-    return res.json(users);
+    const decryptedUsers = users.map(user => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      isVerified: user.isVerified,
+      plainPassword: user.encryptedPassword ? decrypt(user.encryptedPassword) : "সেট করা নেই",
+    }));
+    return res.json(decryptedUsers);
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
@@ -107,24 +125,35 @@ app.post("/api/users", async (req: Request, res: Response) => {
 
     const existingUser = await db.user.findUnique({ where: { email } });
     if (existingUser) {
-      return res.status(400).json({ error: "Email already exists" });
+      return res.status(400).json({ error: "ইমেইলটি ইতিমধ্যেই নিবন্ধিত।" });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    const encPassword = encrypt(password);
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+
     const user = await db.user.create({
       data: {
         name,
         email,
         password: hashedPassword,
         role,
+        isVerified: role === "SUPER_ADMIN", 
+        verificationToken: role === "SUPER_ADMIN" ? null : verificationToken,
+        encryptedPassword: encPassword,
       },
     });
+
+    if (role !== "SUPER_ADMIN") {
+      await sendActivationEmail(email, name, verificationToken);
+    }
 
     return res.status(201).json({
       id: user.id,
       name: user.name,
       email: user.email,
       role: user.role,
+      isVerified: user.isVerified,
     });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
@@ -136,6 +165,152 @@ app.delete("/api/users/:id", async (req: Request, res: Response) => {
     const { id } = req.params;
     await db.user.delete({ where: { id } });
     return res.json({ message: "User deleted successfully" });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/auth/verify", async (req: Request, res: Response) => {
+  try {
+    const { token } = req.query;
+    if (!token) {
+      return res.status(400).send("<h3>অ্যাক্টিভেশন টোকেন পাওয়া যায়নি!</h3>");
+    }
+
+    const user = await db.user.findFirst({
+      where: { verificationToken: token as string },
+    });
+
+    if (!user) {
+      return res.status(404).send("<h3>ভুল বা অবৈধ অ্যাক্টিভেশন লিঙ্ক!</h3>");
+    }
+
+    await db.user.update({
+      where: { id: user.id },
+      data: {
+        isVerified: true,
+        verificationToken: null,
+      },
+    });
+
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+    return res.send(`
+      <div style="font-family: Arial, sans-serif; text-align: center; margin-top: 100px;">
+        <h2 style="color: #059669;">অ্যাকাউন্ট সফলভাবে অ্যাক্টিভেট করা হয়েছে!</h2>
+        <p>আসসালামু আলাইকুম ${user.name}, আপনার অ্যাকাউন্টটি ভেরিফাই করা হয়েছে। আপনি এখন লগইন করতে পারবেন।</p>
+        <a href="${frontendUrl}/auth/signin" style="background-color: #059669; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block; margin-top: 20px;">লগইন করতে এখানে ক্লিক করুন</a>
+      </div>
+    `);
+  } catch (error: any) {
+    return res.status(500).send(`<h3>সার্ভার ত্রুটি: ${error.message}</h3>`);
+  }
+});
+
+app.post("/api/users/reset-request", async (req: Request, res: Response) => {
+  try {
+    const { email, newPassword } = req.body;
+    if (!email || !newPassword) {
+      return res.status(400).json({ error: "Email and new password are required" });
+    }
+
+    const user = await db.user.findUnique({ where: { email } });
+    if (!user) {
+      return res.status(404).json({ error: "এই ইমেইলে কোনো অ্যাকাউন্ট পাওয়া যায়নি।" });
+    }
+
+    const existing = await db.passwordResetRequest.findFirst({
+      where: { userId: user.id, status: "PENDING" },
+    });
+    if (existing) {
+      return res.status(400).json({ error: "আপনার একটি পরিবর্তনের আবেদন ইতিমধ্যেই পেন্ডিং রয়েছে।" });
+    }
+
+    const encryptedNewPassword = encrypt(newPassword);
+
+    await db.passwordResetRequest.create({
+      data: {
+        userId: user.id,
+        newPassword: encryptedNewPassword,
+      },
+    });
+
+    return res.json({ message: "পাসওয়ার্ড পরিবর্তনের আবেদন সফলভাবে অ্যাডমিনের কাছে পাঠানো হয়েছে।" });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/users/reset-requests", async (req: Request, res: Response) => {
+  try {
+    const requests = await db.passwordResetRequest.findMany({
+      where: { status: "PENDING" },
+      include: {
+        user: {
+          select: { name: true, email: true }
+        }
+      },
+      orderBy: { createdAt: "desc" }
+    });
+
+    const decryptedRequests = requests.map(reqItem => ({
+      id: reqItem.id,
+      userId: reqItem.userId,
+      userName: reqItem.user.name,
+      userEmail: reqItem.user.email,
+      newPlainPassword: decrypt(reqItem.newPassword),
+      createdAt: reqItem.createdAt,
+    }));
+
+    return res.json(decryptedRequests);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/users/reset-requests/:id/approve", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const request = await db.passwordResetRequest.findUnique({ where: { id } });
+    if (!request || request.status !== "PENDING") {
+      return res.status(404).json({ error: "আবেদনটি খুঁজে পাওয়া যায়নি বা ইতিমধ্যে প্রক্রিয়াজাত হয়েছে।" });
+    }
+
+    const plainNewPassword = decrypt(request.newPassword);
+    const hashedNewPassword = await bcrypt.hash(plainNewPassword, 10);
+
+    await db.user.update({
+      where: { id: request.userId },
+      data: {
+        password: hashedNewPassword,
+        encryptedPassword: request.newPassword,
+      }
+    });
+
+    await db.passwordResetRequest.update({
+      where: { id },
+      data: { status: "APPROVED" }
+    });
+
+    return res.json({ message: "পাসওয়ার্ড সফলভাবে পরিবর্তন ও আপডেট করা হয়েছে!" });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/users/reset-requests/:id/reject", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const request = await db.passwordResetRequest.findUnique({ where: { id } });
+    if (!request || request.status !== "PENDING") {
+      return res.status(404).json({ error: "আবেদনটি খুঁজে পাওয়া যায়নি।" });
+    }
+
+    await db.passwordResetRequest.update({
+      where: { id },
+      data: { status: "REJECTED" }
+    });
+
+    return res.json({ message: "আবেদনটি প্রত্যাখ্যান করা হয়েছে।" });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
