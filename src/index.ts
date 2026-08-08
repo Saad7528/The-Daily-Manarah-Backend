@@ -591,9 +591,14 @@ app.put("/api/posts/:id/hide", async (req: Request, res: Response) => {
 // 8. CATEGORIES API: List
 app.get("/api/categories", async (req: Request, res: Response) => {
   try {
-    const categories = await db.category.findMany({
-      where: { parentId: null },
-      include: { subcategories: true },
+    const allCategories = await db.category.findMany();
+    const rootCategories = allCategories.filter(c => !c.parentId);
+    const categories = rootCategories.map(root => {
+      const subcategories = allCategories.filter(c => c.parentId === root.id);
+      return {
+        ...root,
+        subcategories
+      };
     });
     return res.json(categories);
   } catch (error: any) {
