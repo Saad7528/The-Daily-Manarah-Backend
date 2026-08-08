@@ -500,6 +500,35 @@ app.post("/api/posts", async (req: Request, res: Response) => {
   }
 });
 
+// 4.5 POSTS API: Get by Slug
+app.get("/api/posts/slug/:slug", async (req: Request, res: Response) => {
+  try {
+    const { slug } = req.params;
+    const post = await db.post.findUnique({
+      where: { slug },
+      include: {
+        category: true,
+        author: { select: { id: true, name: true, email: true, role: true } },
+        comments: { where: { isApproved: true } },
+      },
+    });
+
+    if (!post) {
+      return res.status(404).json({ error: "Post not found" });
+    }
+
+    // Increment views asynchronously
+    await db.post.update({
+      where: { slug },
+      data: { views: { increment: 1 } },
+    });
+
+    return res.json(post);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 // 5. POSTS API: Detail
 app.get("/api/posts/:id", async (req: Request, res: Response) => {
   try {
