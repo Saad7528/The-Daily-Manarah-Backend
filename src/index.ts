@@ -383,7 +383,7 @@ app.post("/api/donations", async (req: Request, res: Response) => {
 // 3. POSTS API: List
 app.get("/api/posts", async (req: Request, res: Response) => {
   try {
-    const { categorySlug, division, district, thana, search, sort, isVerified } = req.query;
+    const { categorySlug, division, district, thana, search, sort, isVerified, date } = req.query;
 
     const whereClause: any = {
       isHidden: false,
@@ -391,6 +391,19 @@ app.get("/api/posts", async (req: Request, res: Response) => {
 
     if (isVerified === "true") {
       whereClause.isVerified = true;
+    }
+
+    if (date) {
+      const startOfDay = new Date(date as string);
+      startOfDay.setUTCHours(0, 0, 0, 0);
+
+      const endOfDay = new Date(date as string);
+      endOfDay.setUTCHours(23, 59, 59, 999);
+
+      whereClause.createdAt = {
+        gte: startOfDay,
+        lte: endOfDay,
+      };
     }
 
     if (categorySlug) {
