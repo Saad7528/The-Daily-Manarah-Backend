@@ -102,6 +102,7 @@ async function main() {
       email: "admin@dailymanarah.com",
       password: adminPassword,
       role: Role.SUPER_ADMIN,
+      isVerified: true,
     },
   });
   console.log(`Created admin user: ${adminUser.email}`);
@@ -113,6 +114,7 @@ async function main() {
       email: "editor@dailymanarah.com",
       password: editorPassword,
       role: Role.EDITOR,
+      isVerified: true,
     },
   });
   console.log(`Created editor user: ${editorUser.email}`);
