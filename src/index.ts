@@ -846,7 +846,7 @@ app.post("/api/ai/spellcheck", async (req: Request, res: Response) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`[The Daily Manarah] Backend API Server running on port ${PORT}`);
+  console.log(`[Daily Manarah] Backend API Server running on port ${PORT}`);
 });
 
 export default app;

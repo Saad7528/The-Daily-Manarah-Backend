@@ -385,7 +385,7 @@ async function main() {
         title: template.title,
         slug: template.slug,
         summary: template.summary,
-        content: `${template.summary} এটি একটি বিস্তারিত সংবাদ বিবরণী। দ্য ডেইলি মানারাহ খবরের সত্যতা বজায় রাখতে উৎস যাচাই করে এই নিউজটি পাবলিশ করেছে।`,
+        content: `${template.summary} এটি একটি বিস্তারিত সংবাদ বিবরণী। ডেইলি মানারাহ খবরের সত্যতা বজায় রাখতে উৎস যাচাই করে এই নিউজটি পাবলিশ করেছে।`,
         coverImage: template.cover,
         isVerified: template.isVerified,
         categoryId: matchedCat ? matchedCat.id : dbCategories[0].id,

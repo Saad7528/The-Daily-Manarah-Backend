@@ -25,14 +25,14 @@ export async function sendActivationEmail(to: string, name: string, token: strin
       });
 
       await transporter.sendMail({
-        from: `"The Daily Manarah" <${user}>`,
+        from: `"Daily Manarah" <${user}>`,
         to,
-        subject: "দ্য ডেইলি মানারাহ - এডিটর অ্যাকাউন্ট অ্যাক্টিভেশন",
+        subject: "ডেইলি মানারাহ - এডিটর অ্যাকাউন্ট অ্যাক্টিভেশন",
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
             <h2 style="color: #059669; text-align: center;">অফিসিয়াল এডিটর অ্যাকাউন্ট অ্যাক্টিভেশন</h2>
             <p>আসসালামু আলাইকুম <strong>${name}</strong>,</p>
-            <p>দ্য ডেইলি মানারাহ্ নিউজ পোর্টালে আপনাকে এডিটর হিসেবে যুক্ত করা হয়েছে। আপনার অ্যাকাউন্টটি সচল করতে নিচে থাকা লিঙ্কে বা বাটনে ক্লিক করুন:</p>
+            <p>ডেইলি মানারাহ্ নিউজ পোর্টালে আপনাকে এডিটর হিসেবে যুক্ত করা হয়েছে। আপনার অ্যাকাউন্টটি সচল করতে নিচে থাকা লিঙ্কে বা বাটনে ক্লিক করুন:</p>
             <div style="text-align: center; margin: 30px 0;">
               <a href="${activationLink}" style="background-color: #059669; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">অ্যাকাউন্ট অ্যাক্টিভেট করুন</a>
             </div>
