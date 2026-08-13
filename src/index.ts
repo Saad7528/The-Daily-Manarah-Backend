@@ -383,11 +383,13 @@ app.post("/api/donations", async (req: Request, res: Response) => {
 // 3. POSTS API: List
 app.get("/api/posts", async (req: Request, res: Response) => {
   try {
-    const { categorySlug, division, district, thana, search, sort, isVerified, date } = req.query;
+    const { categorySlug, division, district, thana, search, sort, isVerified, date, showHidden } = req.query;
 
-    const whereClause: any = {
-      isHidden: false,
-    };
+    const whereClause: any = {};
+
+    if (showHidden !== "true") {
+      whereClause.isHidden = false;
+    }
 
     if (isVerified === "true") {
       whereClause.isVerified = true;
