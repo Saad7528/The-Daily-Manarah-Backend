@@ -94,6 +94,7 @@ model SiteSetting {
   commentAiFilterOn  Boolean @default(true)
   shoppingModuleOn   Boolean @default(false)
   sponsoredBannersOn Boolean @default(true)
+  breakingNewsOn     Boolean @default(true)
 }
 
 model Subscription {

@@ -749,6 +749,7 @@ app.get("/api/settings", async (req: Request, res: Response) => {
           commentAiFilterOn: true,
           shoppingModuleOn: false,
           sponsoredBannersOn: true,
+          breakingNewsOn: true,
         },
       });
     }
@@ -762,7 +763,7 @@ app.get("/api/settings", async (req: Request, res: Response) => {
 // 14. SETTINGS API: Update
 app.put("/api/settings", async (req: Request, res: Response) => {
   try {
-    const { watermarkGlobal, commentAiFilterOn, shoppingModuleOn, sponsoredBannersOn } = req.body;
+    const { watermarkGlobal, commentAiFilterOn, shoppingModuleOn, sponsoredBannersOn, breakingNewsOn } = req.body;
     const settings = await db.siteSetting.update({
       where: { id: "global_settings" },
       data: {
@@ -770,6 +771,7 @@ app.put("/api/settings", async (req: Request, res: Response) => {
         commentAiFilterOn,
         shoppingModuleOn,
         sponsoredBannersOn,
+        breakingNewsOn,
       },
     });
     return res.json(settings);
