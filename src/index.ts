@@ -7,6 +7,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { encrypt, decrypt } from "./utils/crypto";
 import { sendActivationEmail } from "./utils/mailer";
 import crypto from "crypto";
+import https from "https";
 
 dotenv.config();
 
@@ -775,6 +776,35 @@ app.put("/api/settings", async (req: Request, res: Response) => {
       },
     });
     return res.json(settings);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// 14.5. TTS API Proxy to bypass Google Translate CORS block
+app.get("/api/tts", (req: Request, res: Response) => {
+  try {
+    const text = req.query.text as string;
+    if (!text) {
+      return res.status(400).json({ error: "Text query parameter is required" });
+    }
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=bn&client=tw-ob`;
+    
+    const options = {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.0.0 Safari/537.36"
+      }
+    };
+
+    https.get(url, options, (googleRes) => {
+      if (googleRes.statusCode !== 200) {
+        return res.status(500).json({ error: "Google Translate returned status " + googleRes.statusCode });
+      }
+      res.setHeader("Content-Type", "audio/mpeg");
+      googleRes.pipe(res);
+    }).on("error", (err) => {
+      return res.status(500).json({ error: err.message });
+    });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
