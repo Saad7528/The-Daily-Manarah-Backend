@@ -620,6 +620,37 @@ app.put("/api/posts/:id/hide", async (req: Request, res: Response) => {
   }
 });
 
+// 7.1 POSTS API: Delete Post
+app.delete("/api/posts/:id", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    // Delete related comments & revisions first
+    await db.comment.deleteMany({ where: { postId: id } });
+    await db.revision.deleteMany({ where: { postId: id } });
+    const deletedPost = await db.post.delete({
+      where: { id },
+    });
+    return res.json({ message: "Post deleted successfully", post: deletedPost });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// 7.2 POSTS API: Pin/Unpin Post (Lead headline)
+app.put("/api/posts/:id/pin", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { isPinned } = req.body;
+    const post = await db.post.update({
+      where: { id },
+      data: { isPinned },
+    });
+    return res.json(post);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 // 8. CATEGORIES API: List
 app.get("/api/categories", async (req: Request, res: Response) => {
   try {
